@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+{% block title %}{{ char_name }} - GBF Skin Size{% endblock %}
+
+{% block content %}
+
+{# ── ヘッダー ── #}
+<a href="/" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);text-decoration:none;font-size:0.81rem;padding:28px 0 16px;transition:color 0.2s;"
+   onmouseover="this.style.color='var(--text-1)'" onmouseout="this.style.color='var(--text-3)'">← 一覧に戻る</a>
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px;">
+  <div>
+    <h2 style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:4px;">{{ char_name }}</h2>
+    <div style="color:var(--text-3);font-size:0.78rem;">ID: {{ char_id }}</div>
+    {% if char_element or char_weapon or char_series or char_rarity %}
+    <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px;">
+      {%- set elem_list = char_element.split(',') | select | list %}
+      {%- set weap_list = char_weapon.split(',')  | select | list %}
+      {%- set seri_list = char_series.split(',')  | select | list %}
+      {%- set rari_list = char_rarity.split(',')  | select | list %}
+
+      {%- for r in rari_list %}
+        <span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:var(--glass-card);border:1px solid var(--border-card);color:var(--text-2);font-weight:600;">{{ r }}</span>
+      {%- endfor %}
+      {%- if rari_list and (elem_list or weap_list or seri_list) %}<span style="color:var(--text-3);font-size:0.78rem;">/</span>{% endif %}
+
+      {%- for e in elem_list %}
+        {% if e == '火' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#c0404018;border:1px solid #c0404055;color:#c04040;">{{ e }}</span>
+        {% elif e == '水' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#2e6ab518;border:1px solid #2e6ab555;color:#2e6ab5;">{{ e }}</span>
+        {% elif e == '土' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#7a5c2818;border:1px solid #7a5c2855;color:#7a5c28;">{{ e }}</span>
+        {% elif e == '風' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#2d7d4e18;border:1px solid #2d7d4e55;color:#2d7d4e;">{{ e }}</span>
+        {% elif e == '光' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#cdaf4118;border:1px solid #cdaf4155;color:#cdaf41;">{{ e }}</span>
+        {% elif e == '闇' %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:#6035a018;border:1px solid #6035a055;color:#6035a0;">{{ e }}</span>
+        {% else %}<span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:var(--glass-card);border:1px solid var(--border-card);color:var(--text-2);">{{ e }}</span>
+        {% endif %}
+      {%- endfor %}
+
+      {%- if elem_list and weap_list %}<span style="color:var(--text-3);font-size:0.78rem;">/</span>{% endif %}
+
+      {%- for w in weap_list %}
+        <span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:var(--glass-card);border:1px solid var(--border-card);color:var(--text-2);">{{ w }}</span>
+      {%- endfor %}
+
+      {%- if seri_list and (elem_list or weap_list) %}<span style="color:var(--text-3);font-size:0.78rem;">/</span>{% endif %}
+
+      {%- for s in seri_list %}
+        <span style="font-size:0.71rem;padding:2px 9px;border-radius:99px;background:var(--glass-card);border:1px solid var(--border-card);color:var(--text-2);">{{ s }}</span>
+      {%- endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-top:6px;">
+    <a href="/character/{{ char_id }}/thumb" class="btn" style="text-decoration:none;font-size:0.75rem;padding:3px 14px;">サムネ設定</a>
+    <div class="d-flex align-items-center gap-2">
+      <button id="btnRec"  class="btn active" onclick="setMode('rec')">推奨モード</button>
+      <button id="btnIndv" class="btn"        onclick="setMode('min')">個別モード</button>
+      <button id="btnSub"  class="btn"        onclick="setMode('sub')">サブモード</button>
+    </div>
+  </div>
+</div>
+
+{# ── 算出方法 ── #}
+<div class="mb-4">
+  <details>
+    <summary>算出方法 ▾</summary>
+    <div class="info-panel" style="margin-top:10px;">
+      <div class="mb-2">
+        <span style="color:var(--text-1);font-weight:600;">JS 実行時間</span>
+        <span style="margin-left:8px;">キャラクターのアニメーション関数が実際に消費したCPU時間。パーフォーマンスのnミリ秒に一致。複数回計測した平均値を表示し、誤差レベルの差（10%以内）はPNGサイズで比較する。PC環境によって変動アリ。</span>
+      </div>
+      <div class="mb-2">
+        <span style="color:var(--amber);font-weight:600;">PNG サイズ</span>
+        <span style="margin-left:8px;">そのスキンの全画像ファイルサイズの合計(エフェクト含む)。属性違い（_s1~6）は平均。</span>
+      </div>
+      {% if show_cjs %}
+      <div class="mb-2">
+        <span style="color:var(--text-1);font-weight:600;">CJS サイズ</span>
+        <span style="margin-left:8px;"><code>npc_{ID}_{スキン番号}.js</code> のファイルサイズ。複数ファイルがある場合は合計。JS実行時間と必ずしも比例しないため参考値扱い。</span>
+      </div>
+      {% endif %}
+      <div class="mb-2">
+        <span style="font-weight:600;">推奨モード</span>
+        <span style="margin-left:8px;">JS実行時間が最小のSDスキンを推奨グループとし、そのグループ内で編成・バトルも独立に最軽量を選出。</span>
+      </div>
+      <div class="mb-2">
+        <span style="font-weight:600;">個別モード</span>
+        <span style="margin-left:8px;">SD・編成・バトルをそれぞれ独立に最軽量を選出。</span>
+      </div>
+      <div>
+        <span style="font-weight:600;">サブモード</span>
+        <span style="margin-left:8px;">サブ編成時用。JSは読み込まれないためSDのPNGと編成のPNGサイズで算出。</span>
+      </div>
+  </details>
+</div>
+
+{# ── 最軽量まとめ ── #}
+<div class="summary-row">
+{% for t in section_order %}
+  {% if t == "sd" %}
+  <div class="summary-card sd">
+    <div class="type-label">SD</div>
+    {% if min_sd and by_type["sd"].get(min_sd) %}
+      {% set skin = by_type["sd"][min_sd] %}
+      {% set je_s = js_exec_map.get(skin.char_id ~ "_" ~ skin.skin_num, {}).get("npc") %}
+      <div class="skin-detail" style="margin:8px 0;">{%- set _m = skin_meta_map.get(skin.char_id, {}) %}{%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}{%- if _s %}{{ _s }}{%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}{%- else %}スキン{%- endif %} {{ skin.skin_num }} <span class="lightest-badge">最軽量</span></div>
+      {% if je_s %}
+      <div style="font-size:0.7rem;font-weight:600;color:var(--text-1);display:flex;gap:4px;justify-content:center;">
+        <span style="min-width:4em;">JS実行</span><span style="font-variant-numeric:tabular-nums;">{{ "%.1f"|format(je_s.avg / 1000) }} ms</span>
+      </div>
+      {% else %}
+      <div style="font-size:0.7rem;color:var(--text-3);display:flex;gap:4px;justify-content:center;">
+        <span style="min-width:4em;">JS実行</span><span>未計測</span>
+      </div>
+      {% endif %}
+      <div class="text-png" style="font-size:0.7rem;margin-top:2px;margin-bottom:10px;display:flex;gap:4px;justify-content:center;">
+        <span style="min-width:4em;">PNG</span><span style="font-variant-numeric:tabular-nums;">{{ "{:,}".format(skin.total) }} B</span>
+      </div>
+      {% if show_cjs %}{% set cjs = cjs_map.get(skin.char_id ~ "_" ~ skin.skin_num) %}
+      <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:4px;display:flex;gap:4px;justify-content:center;">
+        <span style="min-width:4em;">CJS</span><span style="font-variant-numeric:tabular-nums;">{{ "{:,}".format(cjs.total) if cjs else "未収集" }}{% if cjs %} B{% endif %}</span>
+      </div>
+      {% endif %}
+      {% if skin.files %}
+        <img src="{{ skin.files[0].img_data or '/static/images/sd/' ~ skin.files[0].filename }}" class="img-thumb" style="height:130px;width:130px;object-fit:contain;">
+      {% endif %}
+    {% else %}
+      <div class="skin-detail">データなし</div>
+    {% endif %}
+  </div>
+  {% else %}
+  {% set label = "編成" if t == "quest" else "バトル" %}
+  {% set rk = rec_quest if t == "quest" else rec_raid %}
+  {% set mk = min_quest if t == "quest" else min_raid %}
+  <div class="summary-card {{ t }}">
+    <div class="type-label">{{ label }}</div>
+    <div class="summary-rec">
+      {% if rk and by_type[t].get(rk) %}{% set skin = by_type[t][rk] %}
+        <div class="skin-detail" style="margin:8px 0;">{%- set _m = skin_meta_map.get(skin.char_id, {}) %}{%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}{%- if _s %}{{ _s }}{%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}{%- else %}スキン{%- endif %} {{ skin.skin_num }} <span class="lightest-badge">最軽量</span></div>
+        <div class="size-value" style="font-size:1.0rem;margin-bottom:10px;">{{ "{:,}".format(skin.total) }} <span style="font-size:0.65rem;font-weight:400;">B</span></div>
+        {% if skin.files %}
+          <img src="{{ skin.files[0].img_data or '/static/images/' ~ t ~ '/' ~ skin.files[0].filename }}" class="img-thumb" style="height:130px;width:130px;object-fit:contain;">
+        {% endif %}
+      {% else %}<div class="skin-detail">データなし</div>{% endif %}
+    </div>
+    <div class="summary-min" style="display:none;">
+      {% if mk and by_type[t].get(mk) %}{% set skin = by_type[t][mk] %}
+        <div class="skin-detail" style="margin:8px 0;">{%- set _m = skin_meta_map.get(skin.char_id, {}) %}{%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}{%- if _s %}{{ _s }}{%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}{%- else %}スキン{%- endif %} {{ skin.skin_num }} <span class="lightest-badge">最軽量</span></div>
+        <div class="size-value" style="font-size:1.0rem;margin-bottom:10px;">{{ "{:,}".format(skin.total) }} <span style="font-size:0.65rem;font-weight:400;">B</span></div>
+        {% if skin.files %}
+          <img src="{{ skin.files[0].img_data or '/static/images/' ~ t ~ '/' ~ skin.files[0].filename }}" class="img-thumb" style="height:130px;width:130px;object-fit:contain;">
+        {% endif %}
+      {% else %}<div class="skin-detail">データなし</div>{% endif %}
+    </div>
+    {% if t == "quest" %}
+    <div class="summary-sub" style="display:none;">
+      {% if sub_quest and by_type["quest"].get(sub_quest) %}{% set skin = by_type["quest"][sub_quest] %}
+        <div class="skin-detail" style="margin:8px 0;">{%- set _m = skin_meta_map.get(skin.char_id, {}) %}{%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}{%- if _s %}{{ _s }}{%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}{%- else %}スキン{%- endif %} {{ skin.skin_num }} <span class="lightest-badge">最軽量</span></div>
+        <div class="size-value" style="font-size:1.0rem;margin-bottom:10px;">{{ "{:,}".format(skin.total) }} <span style="font-size:0.65rem;font-weight:400;">B</span></div>
+        {% if skin.files %}
+          <img src="{{ skin.files[0].img_data or '/static/images/quest/' ~ skin.files[0].filename }}" class="img-thumb" style="height:130px;width:130px;object-fit:contain;">
+        {% endif %}
+      {% else %}<div class="skin-detail">データなし</div>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endfor %}
+</div>
+
+{# ── 編成・バトルセクション ── #}
+{% macro grouped_section(t, label, dot_color, min_key, rec_key) %}
+{% if by_type[t] %}
+<div class="skin-section" data-section-type="{{ t }}">
+  <div class="skin-section-header">
+    <span class="section-dot" style="background:{{ dot_color }};"></span>
+    <h3>{{ label }}</h3>
+  </div>
+  <div class="skin-groups-wrap">
+    {% set ns = namespace(prev_cid=None) %}
+    {% for key, skin in by_type[t].items() %}
+      {% if skin.char_id != ns.prev_cid %}
+        {% if ns.prev_cid is not none %}</div>{% endif %}
+        {% set ns.prev_cid = skin.char_id %}
+        <div class="skin-group" data-char-id="{{ skin.char_id }}">
+      {% endif %}
+      <div class="skin-card-inner"
+           data-key="{{ key }}"
+           data-char-id="{{ skin.char_id }}"
+           data-is-rec="{{ 'true' if key == rec_key else 'false' }}"
+           data-is-min="{{ 'true' if key == min_key else 'false' }}">
+        <div style="font-size:0.72rem;font-weight:500;letter-spacing:0.04em;margin-bottom:4px;color:var(--text-2);">
+          {%- set _m = skin_meta_map.get(skin.char_id, {}) %}
+          {%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}
+          {%- if _s %}{{ _s }}
+          {%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}
+          {%- else %}スキン
+          {%- endif %} {{ skin.skin_num }}
+          {% if skin.sheet %}<span style="font-size:0.68rem;color:var(--text-3);">({{ skin.sheet }})</span>{% endif %}
+          <span class="lightest-mark badge-rec" style="{% if key != rec_key %}display:none;{% endif %}">最軽量</span>
+          <span class="lightest-mark badge-indv" style="display:none;">最軽量</span>
+        </div>
+        <div class="text-png" style="font-size:0.7rem;margin-top:4px;margin-bottom:6px;">{{ "JPG" if t == "raid" else "PNG" }}: {{ "{:,}".format(skin.total) }} B</div>
+        {% for img in skin.files %}
+        <div>
+          <img src="{{ img.img_data or '/static/images/' ~ t ~ '/' ~ img.filename }}" class="img-thumb d-inline-block" style="height:80px;width:80px;object-fit:contain;">
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+    {% if ns.prev_cid is not none %}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% for t in section_order %}
+{% if t == "sd" and by_type["sd"] %}
+<div class="skin-section" data-section-type="sd">
+  <div class="skin-section-header">
+    <span class="section-dot" style="background:var(--text-2);"></span>
+    <h3>SD</h3>
+    {% if show_cjs %}<button id="btnCjs" class="btn" onclick="sortSd('cjs')" style="font-size:0.72rem;padding:4px 12px;">CJS順</button>{% endif %}
+    <button id="btnPng" class="btn" onclick="sortSd('size')" style="font-size:0.72rem;padding:4px 12px;">PNG順</button>
+    <button id="btnPhit" class="btn"        onclick="togglePhit()"   style="font-size:0.72rem;padding:4px 12px;margin-left:8px;">phit表示</button>
+  </div>
+  <div class="skin-groups-wrap" id="section-sd">
+    {% set ns = namespace(prev_cid=None, idx=-1) %}
+    {% for key, skin in by_type["sd"].items() %}
+      {% if skin.char_id != ns.prev_cid %}
+        {% if ns.prev_cid is not none %}</div>{% endif %}
+        {% set ns.prev_cid = skin.char_id %}
+        {% set ns.idx = ns.idx + 1 %}
+        <div class="skin-group" data-char-id="{{ skin.char_id }}">
+      {% endif %}
+      {% set cjs = cjs_map.get(skin.char_id ~ "_" ~ skin.skin_num) %}
+      <div class="skin-card-inner {% if key == min_sd %}is-min-sd{% endif %}"
+           data-char-id="{{ skin.char_id }}"
+           data-cjs="{{ cjs.total if cjs else 999999999 }}"
+           data-size="{{ skin.total }}">
+        <div style="font-size:0.72rem;font-weight:500;letter-spacing:0.04em;margin-bottom:4px;color:var(--text-2);">
+          {%- set _m = skin_meta_map.get(skin.char_id, {}) %}
+          {%- set _excl = ['十二神将','十天衆','十賢者','四聖'] %}{%- set _s = ((_m.get('series') or '').split(',') | select | reject('in', _excl) | list or [''])[0] %}
+          {%- if _s %}{{ _s }}
+          {%- elif _m.get('rarity') or _m.get('element') %}{{ _m.get('rarity','') }}{{ _m.get('element','') }}
+          {%- else %}スキン
+          {%- endif %} {{ skin.skin_num }}
+          {% if key == min_sd %}<span class="lightest-mark">最軽量</span>{% endif %}
+        </div>
+        {% set je = js_exec_map.get(skin.char_id ~ "_" ~ skin.skin_num) %}
+        {% set je_npc = je.get("npc") if je else none %}
+        {% if je_npc %}
+        <div onclick="toggleJeRaw('je-{{ skin.char_id }}-{{ skin.skin_num }}')"
+             style="font-size:0.7rem;margin-bottom:2px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+          <span style="min-width:4em;">JS実行</span>
+          <span id="je-avg-{{ skin.char_id }}-{{ skin.skin_num }}" style="color:var(--text-1);font-weight:600;font-variant-numeric:tabular-nums;">{{ "%.1f"|format(je_npc.avg / 1000) }} ms</span>
+          <span id="je-cnt-{{ skin.char_id }}-{{ skin.skin_num }}" style="color:var(--text-3);">({{ je_npc.cnt }}回)</span>
+          <span style="color:var(--text-3);font-size:0.65rem;">▾</span>
+        </div>
+        <div id="je-{{ skin.char_id }}-{{ skin.skin_num }}" style="display:none;font-size:0.65rem;color:var(--text-3);margin-bottom:2px;">
+          {% for r in js_exec_raw.get(skin.char_id ~ "_" ~ skin.skin_num, []) %}
+          <div data-je-id="{{ r.id }}" data-us="{{ r.exec_time_us }}"
+               style="display:flex;align-items:center;gap:2px;">
+            <span style="min-width:1.8em;text-align:right;">{{ loop.index }}.</span>
+            <span style="min-width:5.5em;text-align:right;font-variant-numeric:tabular-nums;">{{ "%.2f"|format(r.exec_time_us / 1000) }} ms</span>
+            <button onclick="deleteJeRecord({{ r.id }}, '{{ skin.char_id }}', '{{ skin.skin_num }}')"
+                    style="background:none;border:none;cursor:pointer;color:var(--rose);font-size:0.65rem;padding:0 2px;line-height:1;">×</button>
+          </div>
+          {% endfor %}
+          <button onclick="pruneJeOutliers('{{ skin.char_id }}', '{{ skin.skin_num }}')"
+                  style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.65rem;padding:2px 0 0;">外れ値削除</button>
+        </div>
+        {% else %}
+        <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:2px;display:flex;gap:4px;">
+          <span style="min-width:4em;">JS実行</span><span>未計測</span>
+        </div>
+        {% endif %}
+        <div class="text-png" style="font-size:0.7rem;display:flex;gap:4px;">
+          <span style="min-width:4em;">PNG</span><span style="font-variant-numeric:tabular-nums;">{{ "{:,}".format(skin.total) }} B</span>
+        </div>
+        {% if show_cjs %}
+        <div class="text-cjs" style="font-size:0.68rem;color:var(--text-3);margin-top:1px;display:flex;gap:4px;">
+          <span style="min-width:4em;">CJS</span>
+          <span style="font-variant-numeric:tabular-nums;">{% if cjs %}{{ "{:,}".format(cjs.total) }} B{% else %}未収集{% endif %}</span>
+        </div>
+        {% endif %}
+        {%- set pjs_d = phit_js_map.get(skin.char_id, {}) %}
+        {%- set pjs   = pjs_d.get(skin.skin_num, pjs_d.get("", 0)) %}
+        {%- set pjs_specific = skin.skin_num in pjs_d %}
+        {%- set ppng_d = phit_png_map.get(skin.char_id, {}) %}
+        {%- set ppng   = ppng_d.get(skin.skin_num, ppng_d.get("", 0)) %}
+        {%- set ppng_specific = skin.skin_num in ppng_d %}
+        <div class="phit-info" style="display:none;font-size:0.68rem;color:var(--text-3);margin-top:3px;border-top:1px solid var(--border);padding-top:3px;">
+          {% if pjs %}
+          <div>phit JS: {{ "{:,}".format(pjs) }} B{% if pjs_specific %} <span style="color:var(--text-2);">専用</span>{% else %} 共通{% endif %}</div>
+          {% else %}
+          <div>phit JS: 未収集</div>
+          {% endif %}
+          {% if ppng %}
+          <div>phit PNG: {{ "{:,}".format(ppng) }} B{% if ppng_specific %} <span style="color:var(--text-2);">専用</span>{% else %} 共通{% endif %}</div>
+          {% else %}
+          <div>phit PNG: 未収集</div>
+          {% endif %}
+        </div>
+        {% for img in skin.files %}
+        <div style="margin-top:8px;">
+          <img src="{{ img.img_data or '/static/images/sd/' ~ img.filename }}" class="img-thumb d-inline-block" style="height:80px;width:80px;object-fit:contain;">
+        </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+    {% if ns.prev_cid is not none %}</div>{% endif %}
+  </div>
+</div>
+{% elif t == "quest" %}
+  {{ grouped_section("quest", "編成", "var(--amber)", min_quest, rec_quest) }}
+{% elif t == "raid" %}
+  {{ grouped_section("raid", "バトル", "var(--rose)", min_raid, rec_raid) }}
+{% endif %}
+{% endfor %}
+
+<script>
+  const recCharId = "{{ rec_char_id }}";
+  const subCharId  = "{{ sub_char_id }}";
+  const subQuestKey = "{{ sub_quest }}";
+  let mode = "rec";
+
+  function setMode(m) {
+    mode = m;
+    applyMode();
+  }
+
+  function applyMode() {
+    const isRec = mode === "rec";
+    const isSub = mode === "sub";
+    document.getElementById("btnRec").classList.toggle("active",  isRec);
+    document.getElementById("btnIndv").classList.toggle("active", mode === "min");
+    document.getElementById("btnSub").classList.toggle("active",  isSub);
+
+    // サブモード: SDとバトルを非表示、編成のみ表示
+    document.querySelectorAll(".skin-section[data-section-type]").forEach(sec => {
+      const t = sec.dataset.sectionType;
+      sec.style.display = isSub && (t === "sd" || t === "raid") ? "none" : "";
+    });
+    document.querySelectorAll(".summary-card").forEach(card => {
+      if (isSub) {
+        card.style.display = card.classList.contains("quest") ? "" : "none";
+      } else {
+        card.style.display = "";
+      }
+    });
+
+    document.querySelectorAll(".summary-rec").forEach(el => el.style.display = isRec ? "" : "none");
+    document.querySelectorAll(".summary-min").forEach(el => el.style.display = mode === "min" ? "" : "none");
+    document.querySelectorAll(".summary-sub").forEach(el => el.style.display = isSub ? "" : "none");
+
+    // サブモード: SD PNG最軽量グループ（推奨モードとは別判定）
+    document.querySelectorAll(".skin-group[data-char-id]").forEach(g => {
+      const targetId = isSub ? subCharId : recCharId;
+      g.classList.toggle("rec-highlight", (isRec || isSub) && g.dataset.charId === targetId);
+    });
+
+    document.querySelectorAll(".skin-card-inner[data-is-rec]").forEach(card => {
+      let isLightest, showRec, showIndv;
+      if (isSub) {
+        isLightest = card.dataset.key === subQuestKey;
+        showRec    = isLightest;
+        showIndv   = false;
+      } else if (isRec) {
+        isLightest = card.dataset.isRec === "true";
+        showRec    = isLightest;
+        showIndv   = false;
+      } else {
+        isLightest = card.dataset.isMin === "true";
+        showRec    = false;
+        showIndv   = isLightest;
+      }
+      card.classList.toggle("lightest", isLightest);
+      card.querySelector(".badge-rec").style.display  = showRec  ? "" : "none";
+      card.querySelector(".badge-indv").style.display = showIndv ? "" : "none";
+    });
+  }
+
+  applyMode();
+
+  let sdSortKey = null;
+  let sdOrigOrder = null;
+
+  function sortSd(key) {
+    const container = document.getElementById("section-sd");
+    if (sdOrigOrder === null) {
+      sdOrigOrder = [...container.querySelectorAll(".skin-group")];
+    }
+    if (sdSortKey === key) {
+      // 同じボタンを再押下 → 元の順序に戻す
+      sdOrigOrder.forEach(g => container.appendChild(g));
+      sdSortKey = null;
+    } else {
+      const groups = [...container.querySelectorAll(".skin-group")];
+      groups.sort((a, b) => {
+        const vals = g => [...g.querySelectorAll(".skin-card-inner")].map(c => parseInt(c.dataset[key]));
+        return Math.min(...vals(a)) - Math.min(...vals(b));
+      });
+      groups.forEach(g => container.appendChild(g));
+      sdSortKey = key;
+    }
+    const btnCjs = document.getElementById("btnCjs");
+    if (btnCjs) btnCjs.classList.toggle("active", sdSortKey === "cjs");
+    document.getElementById("btnPng").classList.toggle("active", sdSortKey === "size");
+  }
+
+  let phitVisible = false;
+  function togglePhit() {
+    phitVisible = !phitVisible;
+    document.querySelectorAll(".phit-info").forEach(el => {
+      el.style.display = phitVisible ? "" : "none";
+    });
+    document.getElementById("btnPhit").classList.toggle("active", phitVisible);
+  }
+
+  function toggleJeRaw(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === "none" ? "" : "none";
+  }
+
+  async function deleteJeRecord(id, charId, skinNum) {
+    const ok = await showConfirm("このデータを削除しますか？");
+    if (!ok) return;
+    await fetch(`/api/js_exec/${id}`, { method: "DELETE" });
+    document.querySelector(`[data-je-id="${id}"]`)?.remove();
+    updateJeAvg(charId, skinNum);
+  }
+
+  function updateJeAvg(charId, skinNum) {
+    const container = document.getElementById(`je-${charId}-${skinNum}`);
+    if (!container) return;
+    const vals = [...container.querySelectorAll("[data-us]")].map(el => parseInt(el.dataset.us));
+    const avgSpan = document.getElementById(`je-avg-${charId}-${skinNum}`);
+    const cntSpan = document.getElementById(`je-cnt-${charId}-${skinNum}`);
+    if (!avgSpan) return;
+    if (vals.length === 0) {
+      avgSpan.textContent = "未計測";
+      cntSpan.textContent = "";
+      return;
+    }
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    avgSpan.textContent = (avg / 1000).toFixed(1) + " ms";
+    if (cntSpan) cntSpan.textContent = `(${vals.length}回)`;
+  }
+
+  async function pruneJeOutliers(charId, skinNum) {
+    const ok = await showConfirm("外れ値を自動検出して削除しますか？");
+    if (!ok) return;
+    const res = await fetch("/api/js_exec/prune", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ char_id: charId, skin_num: skinNum, type: "npc" }),
+    });
+    const data = await res.json();
+    if (data.deleted === 0) return;
+    for (const id of data.deleted_ids) {
+      document.querySelector(`[data-je-id="${id}"]`)?.remove();
+    }
+    updateJeAvg(charId, skinNum);
+  }
+
+  function showConfirm(message) {
+    return new Promise(resolve => {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;";
+      overlay.innerHTML = `
+        <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 32px;min-width:240px;text-align:center;box-shadow:0 8px 32px rgba(231,236,243,0.18);">
+          <div style="font-size:0.88rem;margin-bottom:20px;">${message}</div>
+          <div style="display:flex;gap:10px;justify-content:center;">
+            <button id="cfm-yes" style="padding:6px 20px;border-radius:6px;border:none;background:var(--rose);color:#fff;cursor:pointer;font-size:0.82rem;">はい</button>
+            <button id="cfm-no"  style="padding:6px 20px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-1);cursor:pointer;font-size:0.82rem;">いいえ</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector("#cfm-yes").onclick = () => { overlay.remove(); resolve(true); };
+      overlay.querySelector("#cfm-no").onclick  = () => { overlay.remove(); resolve(false); };
+    });
+  }
+</script>
+{% endblock %}

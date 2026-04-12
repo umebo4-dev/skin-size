@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}診断 - GBF Skin Size{% endblock %}
+
+{% block content %}
+<div style="padding:28px 0 20px;">
+  <h2 style="font-size:1.3rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:4px;">適用漏れ診断</h2>
+  <div style="font-size:0.8rem;color:var(--text-3);">画像パスを指定して表示されない原因を調べる</div>
+</div>
+
+<form method="get" action="/check" class="d-flex gap-2 mb-4">
+  <input type="text" name="path" class="form-control"
+         placeholder="例: images/raid/3040032000_04.jpg"
+         value="{{ result.path if result else '' }}"
+         style="max-width:480px;">
+  <button type="submit" class="btn btn-primary">診断</button>
+</form>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-success">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{# ── 手動登録 ── #}
+<details style="margin-bottom:28px;">
+  <summary style="font-size:0.82rem;color:var(--text-3);cursor:pointer;padding:4px 0;">手動登録 ▾</summary>
+  <div class="info-panel" style="margin-top:10px;">
+    <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:14px;">
+      ファイルを選択してタイプを指定すると、ファイル名から自動解析してDBに登録する。
+    </div>
+    <form method="post" action="/check/upload" enctype="multipart/form-data">
+      <input type="hidden" name="path" value="">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <input type="file" name="file" id="manual-file" class="form-control"
+               style="max-width:320px;border-radius:var(--radius-sm);" required
+               onchange="autoFillFilename(this)">
+        <select name="type" id="manual-type" class="form-control" style="max-width:110px;border-radius:99px;">
+          <option value="quest">quest</option>
+          <option value="raid">raid</option>
+          <option value="sd">sd</option>
+        </select>
+        <input type="hidden" name="filename" id="manual-fname">
+        <button type="submit" class="btn btn-success" onclick="return setFilename()">登録</button>
+      </div>
+      <div id="manual-preview" style="margin-top:10px;font-size:0.75rem;color:var(--text-3);"></div>
+    </form>
+  </div>
+</details>
+
+{% if result %}
+<div class="info-panel">
+  <div class="d-flex gap-3 align-items-start">
+    {% if result.on_disk and result.type %}
+    <img src="/static/images/{{ result.type }}/{{ result.fname }}"
+         style="max-height:110px;max-width:110px;object-fit:contain;background:linear-gradient(135deg,var(--mist),var(--pale-blue));border-radius:var(--radius-sm);border:1px solid rgba(215,224,229,0.40);">
+    {% else %}
+    <div style="width:80px;height:80px;background:linear-gradient(135deg,var(--mist),var(--pale-blue));border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:0.75rem;flex-shrink:0;">
+      No img
+    </div>
+    {% endif %}
+
+    <div class="flex-grow-1">
+      <div class="mb-2">
+        <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:2px;">ファイル名</div>
+        <div style="font-weight:600;font-size:0.9rem;">{{ result.fname }}</div>
+      </div>
+      <div class="d-flex gap-3 mb-3">
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-3);">タイプ</div>
+          <span class="badge-secondary">{{ result.type or "不明" }}</span>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-3);">ディスク</div>
+          <div style="font-weight:600;{% if result.on_disk %}color:var(--text-1){% else %}color:var(--rose){% endif %};">
+            {% if result.on_disk %}あり{% else %}なし{% endif %}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;color:var(--text-3);">キャラ名</div>
+          <div>{{ result.char_name or "—" }}</div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        {% for issue in result.issues %}
+          {% if "問題なし" in issue %}
+          <div style="color:var(--text-2);font-size:0.82rem;">✓ {{ issue }}</div>
+          {% else %}
+          <div style="color:var(--rose);font-size:0.82rem;">✗ {{ issue }}</div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      {% if not result.db_rows and result.type %}
+        {% if result.on_disk and result.import_candidate %}
+        <form method="post" action="/check/import" style="display:inline;">
+          <input type="hidden" name="filename" value="{{ result.fname }}">
+          <input type="hidden" name="type" value="{{ result.type }}">
+          <input type="hidden" name="path" value="{{ result.path }}">
+          <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">
+            char_id={{ result.import_candidate.char_id }} / skin_num={{ result.import_candidate.skin_num }} / sheet={{ result.import_candidate.sheet or "なし" }} / {{ "{:,}".format(result.import_candidate.size) }} B
+          </div>
+          <button type="submit" class="btn btn-success">DB に登録する</button>
+        </form>
+        {% elif result.import_candidate %}
+        <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">
+          char_id={{ result.import_candidate.char_id }} / skin_num={{ result.import_candidate.skin_num }} / sheet={{ result.import_candidate.sheet or "なし" }}
+        </div>
+        <form method="post" action="/check/upload" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="path" value="{{ result.path }}">
+          <input type="hidden" name="type" value="{{ result.type }}">
+          <input type="hidden" name="filename" value="{{ result.fname }}">
+          <input type="file" name="file" class="form-control" style="max-width:300px;border-radius:var(--radius-sm);" required>
+          <button type="submit" class="btn btn-warning">アップロード＆登録</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if result.db_rows %}
+  <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;">
+  <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">DB レコード ({{ result.db_rows|length }} 件)</div>
+  <table>
+    <thead>
+      <tr><th>char_id</th><th>skin_num</th><th>type</th><th>sheet</th><th>size_bytes</th></tr>
+    </thead>
+    <tbody>
+    {% for r in result.db_rows %}
+    <tr>
+      <td>{{ r.char_id }}</td>
+      <td>{{ r.skin_num }}</td>
+      <td><span class="badge-secondary">{{ r.type }}</span></td>
+      <td>{{ r.sheet or "—" }}</td>
+      <td>{{ "{:,}".format(r.size_bytes) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+<script>
+  const patQR = /^(\d+)_(\d+)(?:_(\d{3,}))?(?:_s(\d+))?\.jpg$/;
+  const patSD = /^(?:npc_)?(\d+)_(\d+)(?:_s\d+)?(?:_([a-z]))?\.png$/;
+
+  function autoFillFilename(input) {
+    const fname = input.files[0]?.name || "";
+    document.getElementById("manual-fname").value = fname;
+    const preview = document.getElementById("manual-preview");
+    const m = patQR.exec(fname) || patSD.exec(fname);
+    if (m) {
+      const char_id = m[1], skin_num = m[2];
+      const extra = m[3] ? ` / sheet: ${m[3]}` : "";
+      preview.textContent = `→ char_id: ${char_id} / skin_num: ${skin_num}${extra}`;
+    } else {
+      preview.textContent = "ファイル名を解析できませんでした";
+    }
+  }
+
+  function setFilename() {
+    const f = document.getElementById("manual-file").files[0];
+    if (!f) return false;
+    document.getElementById("manual-fname").value = f.name;
+    return true;
+  }
+</script>
+{% endblock %}

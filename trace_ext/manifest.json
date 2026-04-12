@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "GBF Trace Capture",
+  "version": "1.0",
+  "description": "GBFクエスト入場時に自動でパフォーマンストレースを取得",
+  "permissions": ["debugger", "downloads", "webRequest", "storage", "notifications"],
+  "host_permissions": [
+    "*://game.granbluefantasy.jp/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GBF Trace Capture"
+  }
+}

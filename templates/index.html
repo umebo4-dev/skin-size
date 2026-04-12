@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}キャラ一覧 - GBF Skin Size{% endblock %}
+
+{% block content %}
+<style>
+  .fbtn {
+    background: var(--glass-card);
+    border: 1px solid var(--border-card);
+    border-radius: 99px;
+    padding: 3px 11px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .fbtn:hover { border-color: rgba(170,176,184,0.50); color: var(--text-1); }
+  .fbtn.active {
+    background: rgba(44,54,64,0.10);
+    border-color: rgba(44,54,64,0.25);
+    color: var(--text-1);
+  }
+</style>
+
+<div style="padding:40px 0 20px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-bottom:20px;">
+  <h1 style="font-size:1.45rem; font-weight:600; letter-spacing:0.01em;">
+    キャラ一覧
+    <span style="font-size:0.78rem; color:var(--text-3); font-weight:400; margin-left:8px;">{{ chars|length }} 件</span>
+  </h1>
+  <div style="display:flex; align-items:stretch; gap:8px; flex-wrap:wrap;">
+    <div style="position:relative;">
+      <span style="position:absolute; left:18px; top:50%; transform:translateY(-50%); color:var(--text-3); font-size:0.82rem; pointer-events:none;">🔍</span>
+      <input id="search" class="form-control" style="width:480px; padding-left:44px; border-radius:10px;" placeholder="キャラ名・IDで検索...">
+    </div>
+    <button id="btnId"   class="btn active" onclick="sortCards('id')"   style="padding:0 22px; border-radius:10px;">ID順</button>
+    <button id="btnName" class="btn"        onclick="sortCards('name')" style="padding:0 22px; border-radius:10px;">名前順</button>
+    <button id="btnSize" class="btn"        onclick="sortCards('size')" style="padding:0 22px; border-radius:10px;">サイズ順</button>
+    <button id="btnFilter" class="btn active" onclick="toggleFilter()" style="padding:0 16px; border-radius:10px;">フィルター ▲</button>
+  </div>
+</div>
+
+{% if has_meta %}
+<div id="filter-bar" style="margin-bottom:24px; padding:14px 18px; background:var(--glass-card); backdrop-filter:var(--blur-sm); -webkit-backdrop-filter:var(--blur-sm); border:1px solid var(--border-card); border-radius:var(--radius); display:grid; grid-template-columns:auto 1fr; gap:10px 12px; align-items:center;">
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">レアリティ</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="rarity" data-v="">全</button>
+    <button class="fbtn" data-f="rarity" data-v="R">R</button>
+    <button class="fbtn" data-f="rarity" data-v="SR">SR</button>
+    <button class="fbtn" data-f="rarity" data-v="SSR">SSR</button>
+  </div>
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">属性</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="element" data-v="">全</button>
+    <button class="fbtn" data-f="element" data-v="火"   data-color="#c04040" style="color:#c04040;">火</button>
+    <button class="fbtn" data-f="element" data-v="水"   data-color="#2e6ab5" style="color:#2e6ab5;">水</button>
+    <button class="fbtn" data-f="element" data-v="土"   data-color="#7a5c28" style="color:#7a5c28;">土</button>
+    <button class="fbtn" data-f="element" data-v="風"   data-color="#2d7d4e" style="color:#2d7d4e;">風</button>
+    <button class="fbtn" data-f="element" data-v="光"   data-color="#cdaf41" style="color:#cdaf41;">光</button>
+    <button class="fbtn" data-f="element" data-v="闇"   data-color="#6035a0" style="color:#6035a0;">闇</button>
+  </div>
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">得意武器</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="weapon" data-v="">全</button>
+    <button class="fbtn" data-f="weapon" data-v="剣">剣</button>
+    <button class="fbtn" data-f="weapon" data-v="短剣">短剣</button>
+    <button class="fbtn" data-f="weapon" data-v="槍">槍</button>
+    <button class="fbtn" data-f="weapon" data-v="斧">斧</button>
+    <button class="fbtn" data-f="weapon" data-v="杖">杖</button>
+    <button class="fbtn" data-f="weapon" data-v="銃">銃</button>
+    <button class="fbtn" data-f="weapon" data-v="格闘">格闘</button>
+    <button class="fbtn" data-f="weapon" data-v="弓">弓</button>
+    <button class="fbtn" data-f="weapon" data-v="楽器">楽器</button>
+    <button class="fbtn" data-f="weapon" data-v="刀">刀</button>
+   
+  </div>
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">シリーズ</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="series" data-v="">全</button>
+    <button class="fbtn" data-f="series" data-v="水着">水着</button>
+    <button class="fbtn" data-f="series" data-v="浴衣">浴衣</button>
+    <button class="fbtn" data-f="series" data-v="バレンタイン">バレンタイン</button>
+    <button class="fbtn" data-f="series" data-v="ハロウィン">ハロウィン</button>
+    <button class="fbtn" data-f="series" data-v="クリスマス">クリスマス</button>
+    <button class="fbtn" data-f="series" data-v="ドレスアップ">ドレスアップ</button>
+    <button class="fbtn" data-f="series" data-v="十二神将">十二神将</button>
+    <button class="fbtn" data-f="series" data-v="リミテッド">リミテッド</button>
+    <button class="fbtn" data-f="series" data-v="アナザー">アナザー</button>
+    <button class="fbtn" data-f="series" data-v="コラボ">コラボ</button>
+    <button class="fbtn" data-f="series" data-v="十天衆">十天衆</button>
+    <button class="fbtn" data-f="series" data-v="十賢者">十賢者</button>
+    <button class="fbtn" data-f="series" data-v="四聖">四聖</button>
+  </div>
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">種族</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="race" data-v="">全</button>
+    <button class="fbtn" data-f="race" data-v="ヒューマン">ヒューマン</button>
+    <button class="fbtn" data-f="race" data-v="エルーン">エルーン</button>
+    <button class="fbtn" data-f="race" data-v="ドラフ">ドラフ</button>
+    <button class="fbtn" data-f="race" data-v="ハーヴィン">ハーヴィン</button>
+    <button class="fbtn" data-f="race" data-v="星晶獣">星晶獣</button>
+    <button class="fbtn" data-f="race" data-v="その他">その他</button>
+  </div>
+
+  <span style="font-size:0.7rem; color:var(--text-3); letter-spacing:0.05em; white-space:nowrap;">性別</span>
+  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+    <button class="fbtn active" data-f="gender" data-v="">全</button>
+    <button class="fbtn" data-f="gender" data-v="男">男</button>
+    <button class="fbtn" data-f="gender" data-v="女">女</button>
+    <button class="fbtn" data-f="gender" data-v="不詳">不詳</button>
+  </div>
+</div>
+{% endif %}
+
+<div class="card-grid" id="card-container">
+  {% for c in chars %}
+  <div class="char-card"
+       data-name="{{ c.name }}"
+       data-id="{{ c.char_ids }}"
+       data-skins="{{ c.skin_count }}"
+       data-minsize="{{ c.min_size }}"
+       data-element="{{ c.element }}"
+       data-weapon="{{ c.weapon }}"
+       data-race="{{ c.race }}"
+       data-series="{{ c.series }}"
+       data-gender="{{ c.gender }}"
+       data-rarity="{{ c.rarity }}">
+    <a href="/character/{{ c.char_ids }}" class="card">
+      <div class="thumb">
+        {% if c.thumb_data %}
+          <img src="{{ c.thumb_data }}" alt="{{ c.name }}">
+        {% elif c.thumb %}
+          <img src="/static/images/{{ c.thumb }}" alt="{{ c.name }}">
+        {% else %}
+          <span class="no-img">?</span>
+        {% endif %}
+      </div>
+      <div class="body">
+        <div class="name">{{ c.name }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+  // 属性・種族: 単一選択。得意武器: 複数選択(OR)
+  const activeFilters  = { element: "", race: "", series: "", gender: "", rarity: "" };
+  const selectedWeapons = new Set();
+
+  document.querySelectorAll(".fbtn").forEach(btn => {
+    btn.addEventListener("click", function () {
+      const f = this.dataset.f;
+      const v = this.dataset.v;
+
+      if (f === "weapon") {
+        if (v === "") {
+          // 「全」→ 全解除
+          selectedWeapons.clear();
+          document.querySelectorAll('.fbtn[data-f="weapon"]').forEach(b => {
+            b.classList.remove("active");
+            b.style.color = b.style.borderColor = b.style.background = "";
+          });
+          this.classList.add("active");
+        } else {
+          // 個別武器: トグル（複数同時選択可）
+          document.querySelector('.fbtn[data-f="weapon"][data-v=""]').classList.remove("active");
+          if (selectedWeapons.has(v)) {
+            selectedWeapons.delete(v);
+            this.classList.remove("active");
+          } else {
+            selectedWeapons.add(v);
+            this.classList.add("active");
+          }
+          // 全解除なら「全」に戻す
+          if (selectedWeapons.size === 0) {
+            document.querySelector('.fbtn[data-f="weapon"][data-v=""]').classList.add("active");
+          }
+        }
+      } else {
+        // 属性・種族: 単一選択（同じボタン再押しで解除）
+        const isSame = activeFilters[f] === v && v !== "";
+        document.querySelectorAll(`.fbtn[data-f="${f}"]`).forEach(b => {
+          b.classList.remove("active");
+          // 属性ボタンは非アクティブ時も固有色を維持
+          b.style.color = b.dataset.color || "";
+          b.style.borderColor = b.style.background = "";
+        });
+        if (isSame) {
+          activeFilters[f] = "";
+          document.querySelector(`.fbtn[data-f="${f}"][data-v=""]`).classList.add("active");
+        } else {
+          activeFilters[f] = v;
+          this.classList.add("active");
+          if (v && this.dataset.color) {
+            const c = this.dataset.color;
+            this.style.color       = c;
+            this.style.borderColor = c + "55";
+            this.style.background  = c + "18";
+          }
+        }
+      }
+
+      applyFilters();
+    });
+  });
+
+  // 検索
+  document.getElementById("search").addEventListener("input", applyFilters);
+
+  function applyFilters() {
+    const q = document.getElementById("search").value.toLowerCase();
+    document.querySelectorAll(".char-card").forEach(card => {
+      const textMatch = (card.dataset.name + card.dataset.id).toLowerCase().includes(q);
+      // 属性: IDのどれか一つでも一致すればOK
+      const elemMatch = !activeFilters.element ||
+        (card.dataset.element || "").split(",").includes(activeFilters.element);
+      // 得意武器: 選択中のどれか一つと一致すればOK
+      const weapMatch = selectedWeapons.size === 0 ||
+        (card.dataset.weapon || "").split(",").some(w => selectedWeapons.has(w));
+      // 種族: 複数持ちのどれか一つと一致すればOK
+      const raceMatch = !activeFilters.race ||
+        (card.dataset.race || "").split(",").includes(activeFilters.race);
+      // シリーズ
+      const seriesMatch = !activeFilters.series ||
+        (card.dataset.series || "").split(",").includes(activeFilters.series);
+      // 性別
+      const genderMatch = !activeFilters.gender ||
+        (card.dataset.gender || "").split(",").includes(activeFilters.gender);
+      // レアリティ
+      const rarityMatch = !activeFilters.rarity ||
+        (card.dataset.rarity || "").split(",").includes(activeFilters.rarity);
+      card.style.display = (textMatch && elemMatch && weapMatch && raceMatch && seriesMatch && genderMatch && rarityMatch) ? "" : "none";
+    });
+  }
+
+  // フィルター開閉
+  function toggleFilter() {
+    const bar = document.getElementById("filter-bar");
+    const btn = document.getElementById("btnFilter");
+    if (!bar) return;
+    const collapsed = bar.style.display === "none";
+    bar.style.display = collapsed ? "grid" : "none";
+    btn.textContent = collapsed ? "フィルター ▲" : "フィルター ▼";
+    btn.classList.toggle("active", collapsed);
+    localStorage.setItem("filterCollapsed", collapsed ? "0" : "1");
+  }
+
+  // 開閉状態を復元
+  (function () {
+    const bar = document.getElementById("filter-bar");
+    const btn = document.getElementById("btnFilter");
+    if (!bar || !btn) return;
+    if (localStorage.getItem("filterCollapsed") === "1") {
+      bar.style.display = "none";
+      btn.textContent = "フィルター ▼";
+      btn.classList.remove("active");
+    }
+  })();
+
+  // ソート
+  function sortCards(key) {
+    const container = document.getElementById("card-container");
+    const cards = [...container.querySelectorAll(".char-card")];
+    cards.sort((a, b) => {
+      if (key === "id")   return a.dataset.id.localeCompare(b.dataset.id);
+      if (key === "name") return a.dataset.name.localeCompare(b.dataset.name, "ja");
+      if (key === "size")  return parseInt(a.dataset.minsize) - parseInt(b.dataset.minsize);
+    });
+    cards.forEach(c => container.appendChild(c));
+    document.getElementById("btnId").classList.toggle("active", key === "id");
+    document.getElementById("btnName").classList.toggle("active", key === "name");
+    document.getElementById("btnSize").classList.toggle("active", key === "size");
+  }
+</script>
+{% endblock %}

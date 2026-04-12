@@ -1,0 +1,7 @@
+skinsize.db
+__pycache__/
+*.pyc
+*.pyo
+har/
+traces/
+config.json

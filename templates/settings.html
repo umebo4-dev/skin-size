@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}設定 - GBF Skin Size{% endblock %}
+
+{% block content %}
+<style>
+  .order-card {
+    transition: box-shadow 0.15s;
+    border: 1px solid color-mix(in srgb,var(--group-hl) 30%,transparent) !important;
+  }
+  .order-card.is-dragging {
+    box-shadow: 0 0 0 2px rgba(44,54,64,0.35), 0 8px 24px rgba(44,54,64,0.12);
+  }
+</style>
+
+<div style="padding:40px 0 20px; border-bottom:1px solid var(--border); margin-bottom:32px;">
+  <h1 style="font-size:1.45rem; font-weight:600; letter-spacing:0.01em;">設定</h1>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}" style="margin-bottom:24px;">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<form method="POST" id="settings-form">
+  <div style="font-size:0.72rem; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-2); margin-bottom:16px;">セクション表示順</div>
+  <div style="font-size:0.78rem; color:var(--text-3); margin-bottom:20px;">ドラッグで並び替え → 保存</div>
+
+  {% set labels = {"sd":"SD", "quest":"編成", "raid":"バトル"} %}
+  <div id="card-order" style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:28px;">
+    {% for t in cfg.section_order %}
+    <div class="summary-card {{ t }} order-card" data-val="{{ t }}"
+         draggable="true"
+         style="cursor:grab; flex:1; min-width:160px; max-width:240px; user-select:none;">
+      <div class="type-label">{{ labels[t] }}</div>
+      <div class="order-num" style="font-size:1.6rem; font-weight:300; color:var(--text-3); margin:24px 0; letter-spacing:0.04em;">{{ loop.index }}</div>
+      <div style="font-size:0.68rem; color:var(--text-3);">⠿ ドラッグで移動</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div id="hidden-inputs">
+    {% for t in cfg.section_order %}
+    <input type="hidden" name="section_order" value="{{ t }}">
+    {% endfor %}
+  </div>
+
+  <div style="font-size:0.72rem; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-2); margin:32px 0 16px;">表示設定</div>
+  <label style="display:flex; align-items:center; gap:12px; cursor:pointer; font-size:0.85rem; color:var(--text-2); margin-bottom:24px;">
+    <input type="checkbox" name="show_cjs" value="1" {% if cfg.get('show_cjs') %}checked{% endif %}
+           style="width:16px; height:16px; cursor:pointer;">
+    CJSサイズを表示する
+    <span style="font-size:0.72rem; color:var(--text-3);">（参考値。軽量判定はJS実行時間を優先）</span>
+  </label>
+
+  <button type="submit" class="btn" style="padding:8px 24px;">保存</button>
+</form>
+
+<script>
+  const container = document.getElementById("card-order");
+  let dragging = null;
+
+  function updateNumbers() {
+    container.querySelectorAll(".order-card").forEach((card, i) => {
+      card.querySelector(".order-num").textContent = i + 1;
+    });
+  }
+
+  function updateHidden() {
+    const hiddenDiv = document.getElementById("hidden-inputs");
+    hiddenDiv.innerHTML = "";
+    container.querySelectorAll(".order-card").forEach(card => {
+      const input = document.createElement("input");
+      input.type  = "hidden";
+      input.name  = "section_order";
+      input.value = card.dataset.val;
+      hiddenDiv.appendChild(input);
+    });
+  }
+
+  container.querySelectorAll(".order-card").forEach(card => {
+    card.addEventListener("dragstart", e => {
+      dragging = card;
+      setTimeout(() => card.classList.add("is-dragging"), 0);
+    });
+    card.addEventListener("dragend", e => {
+      card.classList.remove("is-dragging");
+      dragging = null;
+      updateNumbers();
+      updateHidden();
+    });
+    card.addEventListener("dragover", e => {
+      e.preventDefault();
+      if (!dragging || dragging === card) return;
+      const rect = card.getBoundingClientRect();
+      if (e.clientX < rect.left + rect.width / 2) container.insertBefore(dragging, card);
+      else container.insertBefore(dragging, card.nextSibling);
+    });
+  });
+</script>
+{% endblock %}

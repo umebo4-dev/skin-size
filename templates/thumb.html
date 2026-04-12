@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}サムネイル設定 - {{ char_name }}{% endblock %}
+
+{% block content %}
+<style>
+  .thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .thumb-item {
+    border: 2px solid transparent;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: var(--surface-1);
+  }
+  .thumb-item:hover { border-color: var(--text-3); }
+  .thumb-item.selected {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(184,151,74,0.2);
+  }
+  .thumb-item img {
+    width: 100%; height: 80px; object-fit: contain;
+    display: block; padding: 4px;
+  }
+</style>
+
+<a href="/character/{{ char_ids }}" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);text-decoration:none;font-size:0.81rem;padding:28px 0 16px;transition:color 0.2s;"
+   onmouseover="this.style.color='var(--text-1)'" onmouseout="this.style.color='var(--text-3)'">← {{ char_name }} に戻る</a>
+
+<div style="border-bottom:1px solid var(--border); margin-bottom:28px; padding-bottom:16px;">
+  <h1 style="font-size:1.25rem; font-weight:600;">サムネイル設定</h1>
+  <div style="font-size:0.78rem; color:var(--text-3); margin-top:4px;">画像をクリックして一覧に表示するサムネイルを選択</div>
+</div>
+
+<form method="POST" id="thumb-form">
+  <input type="hidden" name="thumb" id="thumb-input" value="{{ current }}">
+
+  <div class="thumb-grid">
+    {% for img in images %}
+    <div class="thumb-item {% if img.path == current %}selected{% endif %}"
+         data-path="{{ img.path }}" onclick="selectThumb(this)">
+      <img src="{{ img.img_data or '/static/images/' ~ img.path }}">
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if not images %}
+  <div style="color:var(--text-3); font-size:0.85rem;">画像データがありません</div>
+  {% endif %}
+
+  <div style="display:flex; gap:10px; align-items:center; margin-top:8px;">
+    <button type="submit" class="btn" style="padding:8px 24px;">保存</button>
+    {% if current %}
+    <button type="button" class="btn" onclick="clearThumb()" style="padding:8px 16px; font-size:0.8rem;">リセット（自動選択に戻す）</button>
+    {% endif %}
+  </div>
+</form>
+
+<script>
+  function selectThumb(el) {
+    document.querySelectorAll(".thumb-item").forEach(e => e.classList.remove("selected"));
+    el.classList.add("selected");
+    document.getElementById("thumb-input").value = el.dataset.path;
+  }
+
+  function clearThumb() {
+    document.getElementById("thumb-input").value = "";
+    document.getElementById("thumb-form").submit();
+  }
+</script>
+{% endblock %}
