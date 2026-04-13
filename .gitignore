@@ -5,3 +5,4 @@ __pycache__/
 har/
 traces/
 config.json
+static/images/

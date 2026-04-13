@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    padding: 14px;
+    min-width: 240px;
+    font-size: 13px;
+    color: #2c3640;
+    background: #f5f4f2;
+  }
+  h1 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #5a6670; margin-bottom: 12px; text-transform: uppercase; }
+  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.off    { background: #aab0b8; }
+  .dot.active { background: #f44336; animation: pulse 0.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  #statusText { font-size: 13px; }
+  .sep { border: none; border-top: 1px solid #dde2e6; margin: 8px 0; }
+  .label { font-size: 10px; color: #aab0b8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .entry { font-size: 11px; color: #5a6670; padding: 3px 0; border-bottom: 1px solid #edf0f2; }
+  .entry:last-child { border-bottom: none; }
+  .time-val { float: right; font-weight: 600; color: #9a8448; }
+  #empty { font-size: 12px; color: #aab0b8; }
+  .mode-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .mode-btn {
+    flex: 1;
+    padding: 5px 0;
+    border: 1px solid #cdd2d8;
+    border-radius: 6px;
+    background: #fff;
+    color: #5a6670;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .mode-btn.active {
+    background: #2c3640;
+    border-color: #2c3640;
+    color: #fff;
+  }
+  .mode-note { font-size: 10px; color: #aab0b8; margin-bottom: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<h1>GBF Skin Profiler</h1>
+
+<div class="mode-row">
+  <button class="mode-btn" id="btnSize">画像計測</button>
+  <button class="mode-btn" id="btnJs">JS計測</button>
+</div>
+<div class="mode-note" id="modeNote"></div>
+
+<div class="status">
+  <span class="dot off" id="dot"></span>
+  <span id="statusText">確認中...</span>
+</div>
+<hr class="sep">
+<div class="label">最終キャプチャ</div>
+<div id="captureTime" style="font-size:11px;color:#aab0b8;margin-bottom:6px;"></div>
+<div id="entries"><span id="empty">バトル開始を待機中</span></div>
+<script src="popup.js"></script>
+</body>
+</html>

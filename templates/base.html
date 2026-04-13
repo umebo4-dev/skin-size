@@ -359,6 +359,7 @@
       <div class="nav-links">
         <a href="/">一覧</a>
         <a href="/check">診断</a>
+        <a href="#" id="navUpdate" onclick="openUpdateModal();return false;">更新</a>
         <a href="/settings">設定</a>
       </div>
       <div class="nav-right"></div>
@@ -369,6 +370,82 @@
 <div class="container z1" style="padding-top:32px; padding-bottom:60px;">
   {% block content %}{% endblock %}
 </div>
+
+<!-- wiki更新モーダル -->
+<div id="updateOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;z-index:9999;">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:32px 36px;min-width:300px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+    <div id="umDesc" style="font-size:0.85rem;color:var(--text-2);margin-bottom:20px;">gbf.wiki から属性・得意武器・種族などを取得します（数十秒かかります）</div>
+    <div id="umRunning" style="display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;">
+      <div class="um-spinner"></div>
+      <span style="font-size:0.85rem;color:var(--text-2);">取得中...</span>
+    </div>
+    <div id="umResult" style="display:none;font-size:0.85rem;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button id="umStart" onclick="startUpdate()" style="padding:6px 20px;border-radius:6px;border:none;background:var(--accent,#4a7fc1);color:#fff;cursor:pointer;font-size:0.82rem;">取得開始</button>
+      <button id="umClose" onclick="closeUpdateModal()" style="padding:6px 20px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-1);cursor:pointer;font-size:0.82rem;">閉じる</button>
+    </div>
+  </div>
+</div>
+<style>
+  .um-spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--text-2);border-radius:50%;animation:umspin 0.7s linear infinite;flex-shrink:0; }
+  @keyframes umspin { to { transform:rotate(360deg); } }
+</style>
+<script>
+  let _umPoll = null;
+
+  function openUpdateModal() {
+    document.getElementById("updateOverlay").style.display = "flex";
+  }
+  function closeUpdateModal() {
+    clearInterval(_umPoll);
+    _umPoll = null;
+    const overlay = document.getElementById("updateOverlay");
+    overlay.style.display = "none";
+    // リセット
+    document.getElementById("umDesc").style.display    = "block";
+    document.getElementById("umRunning").style.display = "none";
+    document.getElementById("umResult").style.display  = "none";
+    document.getElementById("umStart").disabled        = false;
+    document.getElementById("umStart").textContent     = "取得開始";
+  }
+
+  async function startUpdate() {
+    document.getElementById("umStart").disabled     = true;
+    document.getElementById("umDesc").style.display = "none";
+    document.getElementById("umResult").style.display = "none";
+    document.getElementById("umRunning").style.display = "flex";
+
+    const res = await fetch("/api/fetch_meta", { method: "POST" });
+    if (!res.ok && res.status !== 409) {
+      document.getElementById("umRunning").style.display = "none";
+      const r = document.getElementById("umResult");
+      r.textContent = "開始失敗";
+      r.style.color = "#c04040";
+      r.style.display = "block";
+      document.getElementById("umStart").disabled = false;
+      return;
+    }
+    _umPoll = setInterval(async () => {
+      const s = await fetch("/api/fetch_meta/status");
+      const d = await s.json();
+      if (d.running) return;
+      clearInterval(_umPoll);
+      _umPoll = null;
+      document.getElementById("umRunning").style.display = "none";
+      const r = document.getElementById("umResult");
+      if (d.error) {
+        r.textContent = "失敗: " + d.error;
+        r.style.color = "#c04040";
+      } else {
+        r.textContent = `完了: ${d.saved} 件 / 合計 ${d.total} 件`;
+        r.style.color = "#2d7d4e";
+      }
+      r.style.display = "block";
+      document.getElementById("umStart").disabled    = false;
+      document.getElementById("umStart").textContent = "再取得";
+    }, 1000);
+  }
+</script>
 
 </body>
 </html>

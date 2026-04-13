@@ -4,8 +4,22 @@ import sqlite3
 import os
 import json
 import base64
+import threading
+import io
 from collections import Counter
 from flask import Flask, render_template, redirect, url_for, request, flash
+
+try:
+    import requests as _requests
+    _HAS_REQUESTS = True
+except ImportError:
+    _HAS_REQUESTS = False
+
+try:
+    from PIL import Image as _Image
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -81,6 +95,14 @@ def migrate_db():
             conn.execute(f"ALTER TABLE character_meta ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
         except Exception:
             pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS phit_chars (
+            char_id  TEXT NOT NULL,
+            skin_num TEXT NOT NULL DEFAULT '',
+            phit_id  TEXT NOT NULL,
+            PRIMARY KEY (char_id, skin_num, phit_id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -250,6 +272,7 @@ def detail(char_ids):
     name_map = {f"{r['char_id']}_{r['skin_num']}": r["name"] for r in names}
 
     # CJS JSファイルサイズ（npc + phit の合計）をSDスキンごとに取得
+    # phit_chars テーブルを結合して汎用phitも対象キャラとして取得
     cjs_rows = conn.execute(f"""
         SELECT char_id, skin_num, type, filename,
                CAST(AVG(size_bytes) AS INTEGER) as size_bytes,
@@ -257,8 +280,19 @@ def detail(char_ids):
         FROM skins
         WHERE char_id IN ({placeholders}) AND type IN ('cjs_npc', 'cjs_phit', 'phit_png')
         GROUP BY char_id, skin_num, type, filename
+
+        UNION ALL
+
+        SELECT pc.char_id, pc.skin_num, s.type, s.filename,
+               CAST(AVG(s.size_bytes) AS INTEGER) as size_bytes,
+               COUNT(*) as samples
+        FROM skins s
+        JOIN phit_chars pc ON s.char_id = pc.phit_id
+        WHERE pc.char_id IN ({placeholders}) AND s.type IN ('cjs_phit', 'phit_png')
+        GROUP BY pc.char_id, pc.skin_num, s.type, s.filename
+
         ORDER BY char_id, skin_num, type, filename
-    """, id_list).fetchall()
+    """, id_list + id_list).fetchall()
 
     # phit JS: char_id -> {skin_num -> size}（cjs_mapに加算用）
     # phit PNG: char_id -> {skin_num -> size}（SD PNG totalに加算用）
@@ -279,9 +313,12 @@ def detail(char_ids):
     conn.close()
 
     def _phit_lookup(mapping, char_id, skin_num):
-        """スキン専用エントリがあればそのサイズ、なければデフォルト("")を返す"""
+        """スキン専用→デフォルト("")→任意のスキンの順で検索。
+        汎用phit(bw_0012等)は同一ファイルを別skin_numで収集することがあるため最後に任意fallback"""
         skins = mapping.get(char_id, {})
-        return skins.get(skin_num, skins.get("", 0))
+        if not skins:
+            return 0
+        return skins.get(skin_num) or skins.get("") or next(iter(skins.values()), 0)
 
     # (char_id_skin_num) -> {total, files}  ※JSサイズのみ
     cjs_map = {}
@@ -833,6 +870,29 @@ def settings():
     return render_template("settings.html", cfg=cfg)
 
 
+_fetch_state = {"running": False, "saved": 0, "total": 0, "error": None, "done": False}
+
+def _run_fetch_async():
+    import fetch_meta as fm
+    _fetch_state.update(running=True, error=None, done=False)
+    try:
+        saved, total = fm.run_fetch(db_path=DB_PATH)
+        _fetch_state.update(saved=saved, total=total)
+    except Exception as e:
+        _fetch_state["error"] = str(e)
+    finally:
+        _fetch_state.update(running=False, done=True)
+
+@app.route("/api/fetch_meta", methods=["POST"])
+def api_fetch_meta():
+    if _fetch_state["running"]:
+        return {"ok": False, "error": "already running"}, 409
+    threading.Thread(target=_run_fetch_async, daemon=True).start()
+    return {"ok": True}
+
+@app.route("/api/fetch_meta/status")
+def api_fetch_meta_status():
+    return dict(_fetch_state)
 
 
 @app.route("/api/js_exec/prune", methods=["POST"])
@@ -874,6 +934,114 @@ def delete_js_exec(record_id):
     """個別レコードを削除"""
     conn = get_db()
     conn.execute("DELETE FROM js_exec WHERE id=?", (record_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+def _download_and_save_image(url, rtype, filename, char_id, skin_num, sheet):
+    """CDN URLから画像を取得してWebPに変換・保存（バックグラウンドスレッド用）"""
+    if not _HAS_REQUESTS or not _HAS_PIL:
+        return
+    webp_name = re.sub(r'\.(png|jpg|jpeg)$', '.webp', filename, flags=re.IGNORECASE)
+    save_dir  = os.path.join(IMG_DIR, rtype)
+    os.makedirs(save_dir, exist_ok=True)
+    path = os.path.join(save_dir, webp_name)
+    if os.path.exists(path):
+        return
+    try:
+        resp = _requests.get(url, timeout=15)
+        resp.raise_for_status()
+        img = _Image.open(io.BytesIO(resp.content))
+        img.save(path, "WEBP", quality=85, method=6)
+    except Exception as e:
+        print(f"[collect] 画像ダウンロード失敗 {filename}: {e}")
+
+
+@app.route("/api/collect_skin", methods=["POST"])
+def api_collect_skin():
+    """拡張機能からスキンファイルサイズを受信してDBに保存"""
+    data       = request.get_json(silent=True) or {}
+    char_id    = data.get("char_id", "")
+    skin_num   = data.get("skin_num", "")
+    rtype      = data.get("type", "")
+    sheet      = data.get("sheet", "")
+    filename   = data.get("filename", "")
+    size_bytes = int(data.get("size_bytes", 0))
+    url        = data.get("url", "")
+
+    if not all([char_id, rtype, filename]) or size_bytes <= 0:
+        return {"ok": False, "error": "missing fields"}, 400
+
+    # 画像ファイルは .webp 名でDBに保存
+    is_image = rtype in ("sd", "quest", "raid", "phit_png")
+    if is_image:
+        save_name = re.sub(r'\.(png|jpg|jpeg)$', '.webp', filename, flags=re.IGNORECASE)
+    else:
+        save_name = filename
+
+    conn = get_db()
+    exists = conn.execute(
+        "SELECT 1 FROM skins WHERE filename = ? AND type = ? LIMIT 1",
+        (save_name, rtype)
+    ).fetchone()
+    if not exists:
+        conn.execute("""
+            INSERT INTO skins (char_id, skin_num, type, sheet, filename, size_bytes)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (char_id, skin_num, rtype, sheet, save_name, size_bytes))
+        conn.commit()
+
+        # 画像はバックグラウンドでCDNからダウンロード
+        if is_image and url:
+            threading.Thread(
+                target=_download_and_save_image,
+                args=(url, rtype, filename, char_id, skin_num, sheet),
+                daemon=True
+            ).start()
+    conn.close()
+    return {"ok": True}
+
+
+@app.route("/api/collect_char", methods=["POST"])
+def api_collect_char():
+    """拡張機能からキャラ名を受信してDBに保存"""
+    data  = request.get_json(silent=True) or {}
+    chars = data.get("chars", [])
+    if not chars:
+        return {"ok": False, "error": "no chars"}, 400
+
+    conn = get_db()
+    for c in chars:
+        char_id  = c.get("char_id", "")
+        skin_num = c.get("skin_num", "")
+        name     = c.get("name", "")
+        if not all([char_id, skin_num, name]):
+            continue
+        conn.execute("""
+            INSERT INTO characters (char_id, skin_num, name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(char_id, skin_num) DO UPDATE SET name = excluded.name
+        """, (char_id, skin_num, name))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.route("/api/phit_char", methods=["POST"])
+def api_phit_char():
+    """NPC JSから抽出したphit→キャラ紐付けを保存"""
+    data     = request.get_json(silent=True) or {}
+    char_id  = data.get("char_id", "")
+    skin_num = data.get("skin_num", "")
+    phit_id  = data.get("phit_id", "")
+    if not all([char_id, phit_id]):
+        return {"ok": False, "error": "missing fields"}, 400
+    conn = get_db()
+    conn.execute("""
+        INSERT OR IGNORE INTO phit_chars (char_id, skin_num, phit_id)
+        VALUES (?, ?, ?)
+    """, (char_id, skin_num, phit_id))
     conn.commit()
     conn.close()
     return {"ok": True}

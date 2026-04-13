@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "GBF Skin Profiler",
+  "version": "1.1",
+  "description": "GBFスキンのJS実行時間・ファイルサイズを計測してローカルDBに保存",
+  "permissions": ["debugger", "webRequest", "tabs", "storage", "alarms"],
+  "host_permissions": [
+    "*://game.granbluefantasy.jp/*",
+    "*://prd-game-a-granbluefantasy.akamaized.net/*",
+    "http://127.0.0.1:5000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://game.granbluefantasy.jp/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page_interceptor.js"],
+      "matches": ["*://game.granbluefantasy.jp/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GBF Skin Profiler"
+  }
+}

@@ -106,21 +106,18 @@ def init_table():
 
 
 def match_and_save(records):
-    """wiki レコードを DB の char_id にマッチさせて保存"""
+    """wiki レコードを全件 character_meta に保存（skins の有無を問わない）"""
     conn = sqlite3.connect(DB_PATH)
-    existing = {r[0] for r in conn.execute("SELECT DISTINCT char_id FROM skins")}
 
     saved = 0
     for r in records:
         wiki_id = (r.get("id") or "").strip()
         element  = ELEMENT.get((r.get("element") or "").strip(), "")
-        # weapon は複数の場合 "Sabre,Katana" のようにカンマ区切り
         weapon = ",".join(
             WEAPON.get(w.strip(), w.strip())
             for w in (r.get("weapon") or "").split(",")
             if w.strip()
         )
-        # series は複数の場合 "12generals,summer" のようにカンマ区切り（すべて小文字）
         series = ",".join(
             SERIES.get(s.strip(), s.strip())
             for s in (r.get("series") or "").split(",")
@@ -129,7 +126,6 @@ def match_and_save(records):
         gender   = GENDER.get((r.get("gender")  or "").strip().lower(), "")
         rarity   = (r.get("rarity") or "").strip()
 
-        # race は複数の場合 "Human,Erune" や "Human|Erune" 区切りの可能性
         race_raw = (r.get("race") or "")
         race = ",".join(
             RACE.get(rc.strip(), rc.strip())
@@ -140,47 +136,41 @@ def match_and_save(records):
         if not element or len(wiki_id) != 10 or not wiki_id.isdigit():
             continue
 
-        found = None
-
-        # wiki の id フィールドは10桁のフルゲームID
-        if len(wiki_id) == 10 and wiki_id in existing:
-            found = wiki_id
-
-        if found:
-            conn.execute("""
-                INSERT INTO character_meta (char_id, element, weapon, race, series, gender, rarity)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(char_id) DO UPDATE SET
-                    element = excluded.element,
-                    weapon  = excluded.weapon,
-                    race    = excluded.race,
-                    series  = excluded.series,
-                    gender  = excluded.gender,
-                    rarity  = excluded.rarity
-            """, (found, element, weapon, race, series, gender, rarity))
-            saved += 1
+        conn.execute("""
+            INSERT INTO character_meta (char_id, element, weapon, race, series, gender, rarity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(char_id) DO UPDATE SET
+                element = excluded.element,
+                weapon  = excluded.weapon,
+                race    = excluded.race,
+                series  = excluded.series,
+                gender  = excluded.gender,
+                rarity  = excluded.rarity
+        """, (wiki_id, element, weapon, race, series, gender, rarity))
+        saved += 1
 
     conn.commit()
     conn.close()
     return saved
 
 
-def main():
-    print("gbf.wiki からデータ取得中...")
+def run_fetch(db_path=None):
+    """アプリから呼び出し可能。成功時 (saved, total) を返す"""
+    global DB_PATH
+    if db_path:
+        DB_PATH = db_path
     records = fetch_wiki()
-    print(f"取得完了: {len(records)} 件")
-
-    if records:
-        print("サンプル (先頭3件):")
-        for r in records[:3]:
-            print(f"  {r}")
-
     init_table()
     saved = match_and_save(records)
-
     conn = sqlite3.connect(DB_PATH)
     total = conn.execute("SELECT COUNT(*) FROM character_meta").fetchone()[0]
     conn.close()
+    return saved, total
+
+
+def main():
+    print("gbf.wiki からデータ取得中...")
+    saved, total = run_fetch()
     print(f"DBに保存: {saved} 件 / character_meta 合計: {total} 件")
 
 
